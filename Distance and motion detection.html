@@ -1,0 +1,125 @@
+ <!DOCTYPE html>
+  <html>
+  <head>
+    <title>D1 Mini Motion/Distance Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body { font-family: Arial, sans-serif; text-align: center; margin-top: 20px; }
+      .button {
+        background-color: #4CAF50;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 10px 5px;
+        cursor: pointer;
+        border-radius: 8px;
+      }
+      .button-off { background-color: #f44336; }
+      .button-auto { background-color: #2196F3; }
+      .status {
+        font-size: 24px;
+        margin: 20px;
+        padding: 10px;
+        border-radius: 5px;
+      }
+      .motion { background-color: #FFEB3B; }
+      .no-motion { background-color: #E0E0E0; }
+      .distance-value { font-weight: bold; }
+      .distance-warning { color: #FF5722; }
+    </style>
+  </head>
+  <body>
+    <h1>Motion & Distance Detection Control</h1>
+    
+    <div class="status" id="motionStatus">%MOTION_STATUS%</div>
+    
+    <div class="distance-value">
+      Distance: <span id="distanceValue">%DISTANCE%</span> cm
+      <span id="distanceWarning" class="distance-warning">%DISTANCE_WARNING%</span>
+    </div>
+    
+    <p>LED Control:</p>
+    <a href="/toggle?cmd=on" class="button">Turn ON</a>
+    <a href="/toggle?cmd=off" class="button button-off">Turn OFF</a>
+    <a href="/toggle?cmd=auto" class="button button-auto">Auto Mode</a>
+    
+    <p>Current Mode: <span id="currentMode">%CURRENT_MODE%</span></p>
+    
+    <script>
+      function updateStatus() {
+        fetch('/status')
+          .then(response => response.json())
+          .then(data => {
+            document.getElementById('motionStatus').textContent = data.motion;
+            document.getElementById('motionStatus').className = 
+              data.motion.includes('Detected') ? 'status motion' : 'status no-motion';
+            
+            document.getElementById('distanceValue').textContent = data.distance;
+            
+            let warningText = '';
+            if (data.distance < 20) warningText = ' (Too Close!)';
+            else if (data.distance > 100) warningText = ' (Too Far!)';
+            document.getElementById('distanceWarning').textContent = warningText;
+            
+            document.getElementById('currentMode').textContent = data.mode;
+          });
+      }
+      
+      setInterval(updateStatus, 500);
+    </script>
+  </body>
+  </html>
+  )=====";
+  
+  // Replace placeholders
+  html.replace("%MOTION_STATUS%", motionState ? "Motion Detected!" : "No Motion");
+  html.replace("%DISTANCE%", String(currentDistance));
+  html.replace("%DISTANCE_WARNING%", 
+    currentDistance < TOO_CLOSE ? " (Too Close!)" : 
+    currentDistance > TOO_FAR ? " (Too Far!)" : "");
+  html.replace("%CURRENT_MODE%", manualOverride ? 
+    (ledState ? "Manual ON" : "Manual OFF") : "Auto Mode");
+  
+  server.send(200, "text/html", html);
+}
+
+void handleToggle() {
+  if (server.hasArg("cmd")) {
+    String cmd = server.arg("cmd");
+    
+    if (cmd == "on") {
+      manualOverride = true;
+      ledState = true;
+      Serial.println("Manual ON");
+    } 
+    else if (cmd == "off") {
+      manualOverride = true;
+      ledState = false;
+      Serial.println("Manual OFF");
+    }
+    else if (cmd == "auto") {
+      manualOverride = false;
+      Serial.println("Auto Mode");
+    }
+    
+    updateLeds();
+  }
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
+void handleStatus() {
+  String json = "{";
+  json += "\"motion\":\"" + String(motionState ? "Motion Detected" : "No Motion") + "\",";
+  json += "\"distance\":" + String(currentDistance) + ",";
+  json += "\"mode\":\"" + String(manualOverride ? 
+    (ledState ? "Manual ON" : "Manual OFF") : "Auto Mode") + "\"";
+  json += "}";
+  
+  server.send(200, "application/json", json);
+}
+```
